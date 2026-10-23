@@ -209,13 +209,13 @@
 
     <footer class="site-footer" id="about">
       <span>Chili Bowl Arcade · A community game collection</span>
-      <span>Games belong to their respective creators. <a href="mediamisc/credits.html">Credits</a> · <a href="https://github.com/selenite-cc/selenite-old" target="_blank" rel="noopener noreferrer">Selenite source</a></span>
+      <span>Games belong to their respective creators. <a href="mediamisc/credits.html">Credits</a> · <a href="https://github.com/Nintendoboi222/games" target="_blank" rel="noopener noreferrer">Community games source</a></span>
     </footer>
   </div>
 
   <script>
-    const seleniteBase = "https://cdn.jsdelivr.net/gh/selenite-cc/selenite-old@9c743188888af0986c8c7b293dbac8f9e421a4ee";
-    const seleniteCatalogUrl = `${seleniteBase}/games.json`;
+    const communityGamesBase = "https://nintendoboi222.github.io/games";
+    const communityGamesTreeUrl = "https://api.github.com/repos/Nintendoboi222/games/git/trees/main?recursive=1";
     const games = [
       { title: "Retro Bowl", path: "retrobowl/index.html", category: "Sports", icon: "🏈", tone: "#2f8f57", tag: "Fan favorite", image: "retrobowl/img/icon.jpg" },
       { title: "Slope", path: "slope/index.html", category: "Arcade", icon: "🟢", tone: "#34a2a3", tag: "Fast" },
@@ -269,7 +269,7 @@
       { title: "Doom", path: "flash/doom.html", category: "Classic", icon: "💥", tone: "#963f39", tag: "Retro" }
     ];
 
-    const categories = ["All games", "Arcade", "Sports", "Racing", "Puzzle", "Adventure", "Flash", "Classic", "Selenite"];
+    const categories = ["All games", "Arcade", "Sports", "Racing", "Puzzle", "Adventure", "Flash", "Classic", "Community"];
     const grid = document.getElementById("game-grid");
     const search = document.getElementById("search");
     const categoryList = document.getElementById("category-list");
@@ -391,38 +391,54 @@
     });
     refresh();
 
-    async function loadSeleniteGames() {
-      try {
-        const response = await fetch(seleniteCatalogUrl);
-        if (!response.ok) throw new Error(`Catalog request failed: ${response.status}`);
-        const catalog = await response.json();
-        if (!Array.isArray(catalog)) return;
+    function formatCommunityGameTitle(directory) {
+      return directory
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/[-_]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
+    }
 
-        const importedGames = catalog
-          .filter((game) => game && typeof game.name === "string" && typeof game.directory === "string" && typeof game.image === "string")
-          .map((game) => {
-            const gameDirectory = encodeURIComponent(game.directory);
-            const gameBase = `${seleniteBase}/${gameDirectory}`;
+    async function loadCommunityGames() {
+      try {
+        const response = await fetch(communityGamesTreeUrl);
+        if (!response.ok) throw new Error(`Game catalog request failed: ${response.status}`);
+        const catalog = await response.json();
+        if (!Array.isArray(catalog.tree)) throw new Error("Game catalog response did not contain a file tree.");
+
+        const directories = new Set(
+          catalog.tree
+            .filter((file) => file && file.type === "blob" && typeof file.path === "string" && file.path.endsWith("/index.html"))
+            .map((file) => file.path.split("/"))
+            .filter((parts) => parts.length === 2 && parts[0])
+            .map((parts) => parts[0])
+        );
+        const existingTitles = new Set(games.map((game) => game.title.toLowerCase()));
+        const importedGames = [...directories]
+          .map((directory) => {
+            const title = formatCommunityGameTitle(directory);
             return {
-              title: game.name,
-              path: `${gameBase}/index.html`,
-              category: "Selenite",
+              title,
+              path: `${communityGamesBase}/${encodeURIComponent(directory)}/index.html`,
+              category: "Community",
               icon: "🎮",
               tone: "#397f70",
-              tag: "Selenite",
-              image: `${gameBase}/${game.image.split("/").map(encodeURIComponent).join("/")}`
+              tag: "Community"
             };
-          });
+          })
+          .filter((game) => !existingTitles.has(game.title.toLowerCase()));
+        if (importedGames.length === 0) throw new Error("No new playable games were found in the repository.");
 
         games.push(...importedGames);
         renderRecentGame();
         refresh();
       } catch (error) {
-        console.error("Unable to load Selenite games.", error);
+        console.error("Unable to load community games.", error);
       }
     }
 
-    loadSeleniteGames();
+    loadCommunityGames();
   </script>
 </body>
 </html>
